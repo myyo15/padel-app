@@ -7,8 +7,8 @@ from datetime import date, time
 PLAYERS = ['Juan', 'Duro', 'Kareka', 'Oscar']
 PLACES = ['La Finca', 'Oira', 'Prix', 'Otro']
 
-DATA_FILE = 'padel_data.csv'
-MATCHES_FILE = 'padel_matches.csv'
+DATA_FILE = 'padel_data_v2.csv'     # ← Cambia a _v2 o cualquier nombre nuevo
+MATCHES_FILE = 'padel_matches_v2.csv'  # ← Lo mismo
 PASSWORD = "padel123"
 
 def check_password():
