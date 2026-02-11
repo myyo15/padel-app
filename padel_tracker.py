@@ -147,7 +147,19 @@ def view_matches(matches):
     if matches.empty:
         st.info("Aún no hay partidos registrados.")
     else:
-        st.dataframe(matches.sort_values(by=['Fecha', 'Hora'], ascending=False))
+        # Ordena solo por columnas que existan
+        sort_by = []
+        if 'Fecha' in matches.columns:
+            sort_by.append('Fecha')
+        if 'Hora' in matches.columns:
+            sort_by.append('Hora')
+        
+        if sort_by:
+            sorted_matches = matches.sort_values(by=sort_by, ascending=False)
+        else:
+            sorted_matches = matches
+        
+        st.dataframe(sorted_matches)
 
 # Gráfico
 def view_graph(stats):
