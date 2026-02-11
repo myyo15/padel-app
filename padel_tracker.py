@@ -6,8 +6,8 @@ from datetime import date
 
 PLAYERS = ['Juan', 'Duro', 'Kareka', 'Oscar']
 DATA_FILE = 'padel_data.csv'
-MATCHES_FILE = 'padel_matches.csv'  # Nuevo archivo para historial de partidos
-PASSWORD = "padel123"  # Cambia si quieres
+MATCHES_FILE = 'padel_matches.csv'
+PASSWORD = "padel123"  # Cámbiala si quieres
 
 # Verificar contraseña
 def check_password():
@@ -26,7 +26,7 @@ def check_password():
         return False
     return True
 
-# Cargar o crear stats por jugador
+# Cargar stats
 @st.cache_data
 def load_stats():
     if os.path.exists(DATA_FILE):
@@ -36,18 +36,34 @@ def load_stats():
         df.to_csv(DATA_FILE, index=False)
         return df
 
-# Cargar o crear historial de partidos
+# Cargar historial
 @st.cache_data
 def load_matches():
     if os.path.exists(MATCHES_FILE):
         return pd.read_csv(MATCHES_FILE)
     else:
-        return pd.DataFrame(columns=['Fecha', 'Equipo1', 'Equipo2', 'Ganador', 'Diferencia'])
+        return pd.DataFrame(columns=['Fecha', 'Equipo1', 'Equipo2', 'Ganador', 'Resultado', 'Dif_Juegos'])
 
-# Guardar ambos
+# Guardar todo
 def save_all(stats, matches):
     stats.to_csv(DATA_FILE, index=False)
     matches.to_csv(MATCHES_FILE, index=False)
+
+# Calcular diferencia neta a partir del resultado
+def calculate_game_diff(result_str):
+    if not result_str.strip():
+        return 0
+    sets = [s.strip() for s in result_str.split(',')]
+    diff = 0
+    for set_score in sets:
+        if '-' not in set_score:
+            continue
+        try:
+            a, b = map(int, set_score.split('-'))
+            diff += (a - b)
+        except:
+            pass
+    return diff
 
 # Añadir partido
 def add_match(stats, matches):
@@ -55,8 +71,8 @@ def add_match(stats, matches):
     
     match_date = st.date_input("Fecha del partido", value=date.today())
     
-    team1 = st.multiselect("Equipo 1 (elige 2 jugadores)", PLAYERS, max_selections=2)
-    team2 = st.multiselect("Equipo 2 (elige 2 jugadores)", PLAYERS, max_selections=2)
+    team1 = st.multiselect("Equipo 1 (elige 2 jugadores)", PLAYERS, max_selections=2, key="team1")
+    team2 = st.multiselect("Equipo 2 (elige 2 jugadores)", PLAYERS, max_selections=2, key="team2")
     
     all_players = team1 + team2
     if len(team1) != 2 or len(team2) != 2 or len(set(all_players)) != 4:
@@ -64,39 +80,58 @@ def add_match(stats, matches):
         return stats, matches
     
     winner = st.radio("Ganador", ["Equipo 1", "Equipo 2"])
-    diff = st.number_input("Diferencia de juegos (positivo)", min_value=1, step=1)
     
-    win_team = team1 if winner == "Equipo 1" else team2
-    lose_team = team2 if winner == "Equipo 1" else team1
+    st.markdown("**Resultado** (ejemplo: 6-4, 6-3 o 6-2, 7-6, 6-4)")
+    result_input = st.text_input("Escribe el resultado completo (separado por comas si hay varios sets)", "")
     
-    # Actualizar stats
-    for player in win_team:
-        stats.loc[stats['Jugador'] == player, 'Victorias'] += 1
-        stats.loc[stats['Jugador'] == player, 'Diferencia_Juegos'] += diff
+    if result_input:
+        diff = calculate_game_diff(result_input)
+        if diff <= 0 and winner == "Equipo 1":
+            st.warning("La diferencia parece negativa o cero para el ganador. Revisa el resultado.")
+        elif diff >= 0 and winner == "Equipo 2":
+            st.warning("La diferencia parece positiva o cero para el ganador (Equipo 2). Invierte los números si es necesario.")
+    else:
+        diff = st.number_input("Diferencia de juegos neta (positivo para el ganador)", min_value=1, value=5, step=1)
     
-    for player in lose_team:
-        stats.loc[stats['Jugador'] == player, 'Diferencia_Juegos'] -= diff
+    if st.button("Añadir Partido"):
+        win_team = team1 if winner == "Equipo 1" else team2
+        lose_team = team2 if winner == "Equipo 1" else team1
+        
+        final_diff = abs(diff) if winner == "Equipo 2" and diff > 0 else diff
+        if winner == "Equipo 2":
+            final_diff = -final_diff  # Para que el ganador siempre sume positivo
+        
+        # Actualizar stats
+        for player in win_team:
+            stats.loc[stats['Jugador'] == player, 'Victorias'] += 1
+            stats.loc[stats['Jugador'] == player, 'Diferencia_Juegos'] += final_diff
+        
+        for player in lose_team:
+            stats.loc[stats['Jugador'] == player, 'Diferencia_Juegos'] -= final_diff
+        
+        # Guardar en historial
+        new_match = pd.DataFrame({
+            'Fecha': [match_date],
+            'Equipo1': [", ".join(team1)],
+            'Equipo2': [", ".join(team2)],
+            'Ganador': [winner],
+            'Resultado': [result_input if result_input else f"Dif: {diff}"],
+            'Dif_Juegos': [final_diff]
+        })
+        matches = pd.concat([matches, new_match], ignore_index=True)
+        
+        st.success(f"¡Partido del {match_date} añadido! Resultado: {result_input or 'Dif: ' + str(diff)}")
+        return stats, matches
     
-    # Guardar en historial
-    new_match = pd.DataFrame({
-        'Fecha': [match_date],
-        'Equipo1': [", ".join(team1)],
-        'Equipo2': [", ".join(team2)],
-        'Ganador': [winner],
-        'Diferencia': [diff]
-    })
-    matches = pd.concat([matches, new_match], ignore_index=True)
-    
-    st.success(f"¡Partido del {match_date} añadido!")
     return stats, matches
 
-# Ver estadísticas por jugador
+# Ver stats jugadores
 def view_player_stats(stats):
     st.subheader("Estadísticas por Jugador")
     stats_sorted = stats.sort_values(by=['Victorias', 'Diferencia_Juegos'], ascending=False)
     st.dataframe(stats_sorted.style.format({'Diferencia_Juegos': '{:+d}'}))
 
-# Ver historial de partidos
+# Ver historial
 def view_matches(matches):
     st.subheader("Historial de Partidos")
     if matches.empty:
@@ -104,22 +139,19 @@ def view_matches(matches):
     else:
         st.dataframe(matches.sort_values(by='Fecha', ascending=False))
 
-# Ver gráfico
+# Gráfico
 def view_graph(stats):
     st.subheader("Gráfico de Estadísticas")
     stats_sorted = stats.sort_values(by=['Victorias', 'Diferencia_Juegos'], ascending=False)
     fig, ax1 = plt.subplots(figsize=(8, 5))
-    
     ax1.bar(stats_sorted['Jugador'], stats_sorted['Victorias'], color='skyblue', alpha=0.8)
     ax1.set_ylabel('Victorias', color='blue')
     ax1.tick_params(axis='y', labelcolor='blue')
-    
     ax2 = ax1.twinx()
     ax2.plot(stats_sorted['Jugador'], stats_sorted['Diferencia_Juegos'], color='darkred', marker='o', linewidth=2)
     ax2.set_ylabel('Diferencia de Juegos', color='darkred')
     ax2.tick_params(axis='y', labelcolor='darkred')
-    
-    plt.title('Estadísticas de Pádel - Los 4 Amigos')
+    plt.title('Estadísticas de Pádel')
     st.pyplot(fig)
 
 # Main
@@ -135,7 +167,9 @@ def main():
     
     if menu == "Añadir Partido":
         stats, matches = add_match(stats, matches)
-        save_all(stats, matches)
+        if 'last_stats' not in st.session_state or st.session_state.last_stats is not stats:
+            save_all(stats, matches)
+            st.session_state.last_stats = stats.copy()  # Evitar guardados innecesarios
     elif menu == "Estadísticas Jugadores":
         view_player_stats(stats)
     elif menu == "Historial Partidos":
