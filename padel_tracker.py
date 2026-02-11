@@ -2,9 +2,11 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
-from datetime import date
+from datetime import date, time
 
 PLAYERS = ['Juan', 'Duro', 'Kareka', 'Oscar']
+PLACES = ['La Finca', 'Oira', 'Prix', 'Otro']
+
 DATA_FILE = 'padel_data.csv'
 MATCHES_FILE = 'padel_matches.csv'
 PASSWORD = "padel123"  # Cámbiala si quieres
@@ -42,7 +44,7 @@ def load_matches():
     if os.path.exists(MATCHES_FILE):
         return pd.read_csv(MATCHES_FILE)
     else:
-        return pd.DataFrame(columns=['Fecha', 'Equipo1', 'Equipo2', 'Ganador', 'Resultado', 'Dif_Juegos'])
+        return pd.DataFrame(columns=['Fecha', 'Hora', 'Lugar', 'Equipo1', 'Equipo2', 'Ganador', 'Resultado', 'Dif_Juegos'])
 
 # Guardar todo
 def save_all(stats, matches):
@@ -71,8 +73,18 @@ def add_match(stats, matches):
     
     match_date = st.date_input("Fecha del partido", value=date.today())
     
-    team1 = st.multiselect("Equipo 1 (elige 2 jugadores)", PLAYERS, max_selections=2, key="team1")
-    team2 = st.multiselect("Equipo 2 (elige 2 jugadores)", PLAYERS, max_selections=2, key="team2")
+    match_time = st.time_input("Hora del partido", value=time(19, 0))  # Por defecto 19:00
+    
+    lugar = st.selectbox("Lugar", PLACES)
+    lugar_custom = ""
+    if lugar == "Otro":
+        lugar_custom = st.text_input("Especifica el lugar", "")
+        lugar_final = lugar_custom.strip() if lugar_custom.strip() else "Otro (sin especificar)"
+    else:
+        lugar_final = lugar
+    
+    team1 = st.multiselect("Equipo 1 (elige 2 jugadores)", PLAYERS, max_selections=2, key="team1_add")
+    team2 = st.multiselect("Equipo 2 (elige 2 jugadores)", PLAYERS, max_selections=2, key="team2_add")
     
     all_players = team1 + team2
     if len(team1) != 2 or len(team2) != 2 or len(set(all_players)) != 4:
@@ -81,15 +93,11 @@ def add_match(stats, matches):
     
     winner = st.radio("Ganador", ["Equipo 1", "Equipo 2"])
     
-    st.markdown("**Resultado** (ejemplo: 6-4, 6-3 o 6-2, 7-6, 6-4)")
-    result_input = st.text_input("Escribe el resultado completo (separado por comas si hay varios sets)", "")
+    st.markdown("**Resultado** (ej: 6-4, 6-3 o 6-2, 7-6, 6-4)")
+    result_input = st.text_input("Escribe el resultado completo (separado por comas)", "")
     
     if result_input:
         diff = calculate_game_diff(result_input)
-        if diff <= 0 and winner == "Equipo 1":
-            st.warning("La diferencia parece negativa o cero para el ganador. Revisa el resultado.")
-        elif diff >= 0 and winner == "Equipo 2":
-            st.warning("La diferencia parece positiva o cero para el ganador (Equipo 2). Invierte los números si es necesario.")
     else:
         diff = st.number_input("Diferencia de juegos neta (positivo para el ganador)", min_value=1, value=5, step=1)
     
@@ -99,7 +107,7 @@ def add_match(stats, matches):
         
         final_diff = abs(diff) if winner == "Equipo 2" and diff > 0 else diff
         if winner == "Equipo 2":
-            final_diff = -final_diff  # Para que el ganador siempre sume positivo
+            final_diff = -final_diff
         
         # Actualizar stats
         for player in win_team:
@@ -112,6 +120,8 @@ def add_match(stats, matches):
         # Guardar en historial
         new_match = pd.DataFrame({
             'Fecha': [match_date],
+            'Hora': [match_time.strftime("%H:%M")],
+            'Lugar': [lugar_final],
             'Equipo1': [", ".join(team1)],
             'Equipo2': [", ".join(team2)],
             'Ganador': [winner],
@@ -120,7 +130,7 @@ def add_match(stats, matches):
         })
         matches = pd.concat([matches, new_match], ignore_index=True)
         
-        st.success(f"¡Partido del {match_date} añadido! Resultado: {result_input or 'Dif: ' + str(diff)}")
+        st.success(f"Partido añadido: {match_date} a las {match_time.strftime('%H:%M')} en {lugar_final}")
         return stats, matches
     
     return stats, matches
@@ -137,7 +147,7 @@ def view_matches(matches):
     if matches.empty:
         st.info("Aún no hay partidos registrados.")
     else:
-        st.dataframe(matches.sort_values(by='Fecha', ascending=False))
+        st.dataframe(matches.sort_values(by=['Fecha', 'Hora'], ascending=False))
 
 # Gráfico
 def view_graph(stats):
@@ -167,9 +177,7 @@ def main():
     
     if menu == "Añadir Partido":
         stats, matches = add_match(stats, matches)
-        if 'last_stats' not in st.session_state or st.session_state.last_stats is not stats:
-            save_all(stats, matches)
-            st.session_state.last_stats = stats.copy()  # Evitar guardados innecesarios
+        save_all(stats, matches)
     elif menu == "Estadísticas Jugadores":
         view_player_stats(stats)
     elif menu == "Historial Partidos":
