@@ -9,7 +9,7 @@ PLACES = ['La Finca', 'Oira', 'Prix', 'Otro']
 
 DATA_FILE = 'padel_data.csv'
 MATCHES_FILE = 'padel_matches.csv'
-PASSWORD = "padel123"  # Cambia si quieres
+PASSWORD = "padel123"  # Cambia esto si quieres una contraseña diferente
 
 def check_password():
     def password_entered():
@@ -36,7 +36,7 @@ def load_stats():
         df.to_csv(DATA_FILE, index=False)
         return df
     
-    # Asegurar columnas necesarias (compatibilidad con versiones antiguas)
+    # Compatibilidad con versiones antiguas
     if 'Dif_Juegos' not in df.columns:
         if 'Diferencia_Juegos' in df.columns:
             df = df.rename(columns={'Diferencia_Juegos': 'Dif_Juegos'})
@@ -97,3 +97,111 @@ def add_match(stats, matches):
     resultado = st.text_input("Resultado (ej: 6-4,6-3)", "")
     
     if resultado:
+        dif = calculate_game_diff(resultado)
+    else:
+        dif = st.number_input("Diferencia neta (positivo para ganador)", min_value=1, value=5, step=1)
+    
+    if st.button("Guardar Partido"):
+        win_team = team1 if ganador == "Equipo 1" else team2
+        lose_team = team2 if ganador == "Equipo 1" else team1
+        
+        final_dif = dif if ganador == "Equipo 1" else -dif
+        
+        # Actualizar stats
+        for p in win_team:
+            stats.loc[stats['Jugador'] == p, 'Victorias'] += 1
+            stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] += final_dif
+        
+        for p in lose_team:
+            stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] -= final_dif
+        
+        # Nueva fila
+        new_row = {
+            'Fecha': str(fecha),
+            'Hora': hora.strftime("%H:%M"),
+            'Lugar': lugar_final,
+            'Equipo1': ", ".join(team1),
+            'Equipo2': ", ".join(team2),
+            'Ganador': ganador,
+            'Resultado': resultado or f"Dif {dif}",
+            'Dif_Juegos': final_dif
+        }
+        
+        matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
+        
+        try:
+            save_all(stats, matches)
+            st.success("Partido guardado correctamente")
+            st.info(f"Partidos en memoria ahora: {len(matches)}")
+        except Exception as e:
+            st.error(f"Error al guardar en disco: {str(e)}")
+            st.info("El partido se añadió en esta sesión, pero no se guardó permanentemente.")
+        
+        return stats, matches
+    
+    return stats, matches
+
+def view_player_stats(stats):
+    st.subheader("Estadísticas Jugadores")
+    sorted_stats = stats.sort_values(by=['Victorias', 'Dif_Juegos'], ascending=False)
+    st.dataframe(sorted_stats.style.format({'Dif_Juegos': '{:+d}'}))
+
+def view_matches(matches):
+    st.subheader("Historial de Partidos")
+    
+    # Depuración opcional (descomenta si necesitas ver qué pasa)
+    # st.write("Columnas actuales:", matches.columns.tolist())
+    # st.write("Número de partidos:", len(matches))
+    
+    if matches.empty:
+        st.info("No hay partidos aún.")
+    else:
+        sort_cols = [c for c in ['Fecha', 'Hora'] if c in matches.columns]
+        if sort_cols:
+            df_sorted = matches.sort_values(by=sort_cols, ascending=False)
+        else:
+            df_sorted = matches
+        st.dataframe(df_sorted)
+
+def view_graph(stats):
+    st.subheader("Gráfico Estadísticas")
+    sorted_stats = stats.sort_values(by=['Victorias', 'Dif_Juegos'], ascending=False)
+    fig, ax1 = plt.subplots(figsize=(8, 5))
+    ax1.bar(sorted_stats['Jugador'], sorted_stats['Victorias'], color='skyblue', alpha=0.8)
+    ax1.set_ylabel('Victorias', color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+    
+    ax2 = ax1.twinx()
+    ax2.plot(sorted_stats['Jugador'], sorted_stats['Dif_Juegos'], color='darkred', marker='o')
+    ax2.set_ylabel('Dif. Juegos', color='darkred')
+    ax2.tick_params(axis='y', labelcolor='darkred')
+    
+    plt.title('Estadísticas Pádel')
+    st.pyplot(fig)
+
+def main():
+    st.title("Tracker de Pádel - Los 4 Amigos")
+    if not check_password():
+        st.stop()
+    
+    stats = load_stats()
+    matches = load_matches()
+    
+    menu = st.sidebar.selectbox("Menú", [
+        "Añadir Partido",
+        "Estadísticas Jugadores",
+        "Historial Partidos",
+        "Gráfico"
+    ])
+    
+    if menu == "Añadir Partido":
+        stats, matches = add_match(stats, matches)
+    elif menu == "Estadísticas Jugadores":
+        view_player_stats(stats)
+    elif menu == "Historial Partidos":
+        view_matches(matches)
+    elif menu == "Gráfico":
+        view_graph(stats)
+
+if __name__ == "__main__":
+    main()
