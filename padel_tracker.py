@@ -85,34 +85,38 @@ def add_match(stats, matches):
         dif = st.number_input("Diferencia neta (positivo)", min_value=1, value=5)
     
     if st.button("Guardar Partido"):
-        win_team = team1 if ganador == "Equipo 1" else team2
-        lose_team = team2 if ganador == "Equipo 1" else team1
-        
-        final_dif = dif if ganador == "Equipo 1" else -dif
-        
-        for p in win_team:
-            stats.loc[stats['Jugador'] == p, 'Victorias'] += 1
-            stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] += final_dif
-        
-        for p in lose_team:
-            stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] -= final_dif
-        
-        new_row = {
-            'Fecha': fecha,
-            'Hora': hora.strftime("%H:%M"),
-            'Lugar': lugar_final,
-            'Equipo1': ", ".join(team1),
-            'Equipo2': ", ".join(team2),
-            'Ganador': ganador,
-            'Resultado': resultado or f"Dif {dif}",
-            'Dif_Juegos': final_dif
-        }
-        
-        matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
-        
-        st.success("Partido guardado")
+    win_team = team1 if ganador == "Equipo 1" else team2
+    lose_team = team2 if ganador == "Equipo 1" else team1
+    
+    final_dif = dif if ganador == "Equipo 1" else -dif
+    
+    for p in win_team:
+        stats.loc[stats['Jugador'] == p, 'Victorias'] += 1
+        stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] += final_dif
+    
+    for p in lose_team:
+        stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] -= final_dif
+    
+    new_row = {
+        'Fecha': fecha,
+        'Hora': hora.strftime("%H:%M"),
+        'Lugar': lugar_final,
+        'Equipo1': ", ".join(team1),
+        'Equipo2': ", ".join(team2),
+        'Ganador': ganador,
+        'Resultado': resultado or f"Dif {dif}",
+        'Dif_Juegos': final_dif
+    }
+    
+    matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
+    
+    try:
         save_all(stats, matches)
-        return stats, matches  # Retornar actualizados
+        st.success("Partido guardado correctamente")
+        st.info(f"Partidos ahora en memoria: {len(matches)}")
+    except Exception as e:
+        st.error(f"Error al guardar: {str(e)}")
+        st.info("El partido se añadió en esta sesión, pero no se guardó permanentemente.")
     
     return stats, matches
 
