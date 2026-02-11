@@ -144,6 +144,14 @@ def view_player_stats(stats):
 # Ver historial
 def view_matches(matches):
     st.subheader("Historial de Partidos")
+    
+    # DEPURACIÓN: Muestra columnas reales y primeras filas
+    st.write("**Depuración - Columnas del DataFrame matches:**")
+    st.write(matches.columns.tolist())  # Lista de columnas exactas
+    
+    st.write("**Primeras filas (raw):**")
+    st.write(matches.head(5))
+    
     if matches.empty:
         st.info("Aún no hay partidos registrados.")
     else:
