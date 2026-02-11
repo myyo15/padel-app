@@ -85,14 +85,16 @@ def add_match(stats, matches):
         dif = st.number_input("Diferencia neta (positivo)", min_value=1, value=5)
     
     if st.button("Guardar Partido"):
-    win_team = team1 if ganador == "Equipo 1" else team2
-    lose_team = team2 if ganador == "Equipo 1" else team1
+    win_team = team1 if ganador == "Equipo 1" else team2   # ← 4 espacios delante
+    lose_team = team2 if ganador == "Equipo 1" else team1  # ← 4 espacios delante
     
-    final_dif = dif if ganador == "Equipo 1" else -dif
+    final_dif = dif if ganador == "Equipo 1" else -dif     # ← indentado
     
-    for p in win_team:
+    for p in win_team:                                     # ← indentado
         stats.loc[stats['Jugador'] == p, 'Victorias'] += 1
         stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] += final_dif
+    
+    # ... resto del código también indentado
     
     for p in lose_team:
         stats.loc[stats['Jugador'] == p, 'Dif_Juegos'] -= final_dif
